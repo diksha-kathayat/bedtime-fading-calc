@@ -214,7 +214,78 @@
                 document.getElementById('adj-res').innerText = minutesToTime(finalMins);
             }
         }
-        window.onload = runLogic;
+        function getAvgMins(vals) {
+            if (!vals || vals.length === 0) return 0;
+            const sum = vals.reduce((a, b) => a + b, 0);
+            return Math.round(sum / vals.length);
+        }
+
+        function getAvgTime(timeStrs, isBedtime = false) {
+            if (!timeStrs || timeStrs.length === 0) return "";
+            
+            let minutesArr = timeStrs.map(t => timeToMinutes(t));
+            
+            if (isBedtime) {
+                // Handle midnight crossing: treat 00:00-11:59 as next day (add 1440)
+                // Assuming "night" is roughly 12:00 PM to 12:00 PM next day logic
+                minutesArr = minutesArr.map(m => (m < 720) ? m + 1440 : m);
+            }
+
+            const avg = getAvgMins(minutesArr);
+            
+            // Normalize back to 0-1439
+            const normalizedAvg = avg % 1440;
+            return minutesToTime(normalizedAvg);
+        }
+
+        function prefillFromParams() {
+            const params = new URLSearchParams(window.location.search);
+            
+            const bedTimes = params.get('bedTimes')?.split(',') || [];
+            const wakeTimes = params.get('wakeTimes')?.split(',') || [];
+            const solValues = params.get('solValues')?.split(',').map(Number) || [];
+            const wasoValues = params.get('wasoValues')?.split(',').map(Number) || [];
+
+            let updated = false;
+
+            if (bedTimes.length > 0) {
+                const avgBed = getAvgTime(bedTimes, true);
+                if (avgBed) {
+                    document.getElementById('base-bed').value = avgBed;
+                    updated = true;
+                }
+            }
+
+            if (wakeTimes.length > 0) {
+                const avgWake = getAvgTime(wakeTimes, false);
+                if (avgWake) {
+                    document.getElementById('base-wake').value = avgWake;
+                    updated = true;
+                }
+            }
+
+            if (solValues.length > 0) {
+                const avgSol = getAvgMins(solValues);
+                document.getElementById('base-sol').value = avgSol;
+                updated = true;
+            }
+
+            if (wasoValues.length > 0) {
+                const avgWaso = getAvgMins(wasoValues);
+                document.getElementById('base-waso').value = avgWaso;
+                updated = true;
+            }
+            
+            // If any field was updated via params, run logic immediately
+            if (updated) {
+                runLogic();
+            }
+        }
+
+        window.onload = function() {
+            prefillFromParams();
+            runLogic();
+        };
     </script>
 </body>
 </html>
