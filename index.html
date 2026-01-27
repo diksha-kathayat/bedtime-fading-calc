@@ -40,6 +40,10 @@
             </div>
             <span class="ml-3 font-bold text-[#5c5be5] tracking-wider uppercase text-sm">Sleep Prescriber</span>
         </div>
+        <div class="mt-2">
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Today is</p>
+            <p id="today-display" class="text-lg font-extrabold text-slate-800"></p>
+        </div>
     </header>
 
     <div class="max-w-4xl mx-auto space-y-10">
@@ -88,19 +92,17 @@
                         class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 font-medium text-sm">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Time to Fall Asleep
-                        (SOL)</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">SOL (Min)</label>
                     <input type="number" id="daily-sol" placeholder="Minutes"
                         class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 font-mono">
                 </div>
                 <div>
-                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Time Awake in Night
-                        (WASO)</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">WASO (Min)</label>
                     <input type="number" id="daily-waso" placeholder="Minutes"
                         class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 font-mono">
                 </div>
             </div>
-            <button onclick="logNight()"
+            <button id="log-btn" onclick="logNight()"
                 class="mt-6 w-full bg-slate-800 text-white font-bold py-4 rounded-xl hover:bg-slate-900 transition-all shadow-lg">
                 Save Night & Update Prescription
             </button>
@@ -140,7 +142,7 @@
                     <i class="fa-solid fa-history text-indigo-500"></i> Your Sleep History
                 </h2>
                 <button onclick="clearHistory()"
-                    class="text-[9px] text-red-400 font-bold uppercase hover:underline">Reset All History</button>
+                    class="text-[9px] text-red-400 font-bold uppercase hover:underline">Reset Data</button>
             </div>
             <div id="history-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2">
             </div>
@@ -148,41 +150,27 @@
     </div>
 
     <script>
-        // Default date to yesterday
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        document.getElementById('daily-date').valueAsDate = yesterday;
-
-        function toggleBaseline() {
-            const section = document.getElementById('baseline-section');
-            section.classList.toggle('hidden-section');
-        }
-
-        function getHistory() {
-            return JSON.parse(localStorage.getItem('sleep_tracker_v3') || "[]");
-        }
+        function toggleBaseline() { document.getElementById('baseline-section').classList.toggle('hidden-section'); }
+        function getHistory() { return JSON.parse(localStorage.getItem('sleep_tracker_v3') || "[]"); }
 
         function logNight() {
             const dateVal = document.getElementById('daily-date').value;
             const sol = parseInt(document.getElementById('daily-sol').value);
             const waso = parseInt(document.getElementById('daily-waso').value);
-
-            if (!dateVal || isNaN(sol) || isNaN(waso)) {
-                alert("Please ensure Date, SOL, and WASO are filled.");
-                return;
-            }
+            if (!dateVal || isNaN(sol) || isNaN(waso)) return;
 
             const dateObj = new Date(dateVal + 'T00:00:00');
             const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
-
             let history = getHistory();
-            history.push({ sol, waso, displayDate: formattedDate, rawDate: dateVal });
-            history.sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
 
-            localStorage.setItem('sleep_tracker_v3', JSON.stringify(history));
+            if (!history.some(entry => entry.rawDate === dateVal)) {
+                history.push({ sol, waso, displayDate: formattedDate, rawDate: dateVal });
+                history.sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+                localStorage.setItem('sleep_tracker_v3', JSON.stringify(history));
+            }
+
             document.getElementById('daily-sol').value = '';
             document.getElementById('daily-waso').value = '';
-
             renderHistory();
             calculatePrescription();
         }
@@ -192,7 +180,6 @@
             const count = history.length;
             const wakeStr = document.getElementById('base-wake').value;
             const bedStr = document.getElementById('base-bed').value;
-
             document.getElementById('res-wake').innerText = wakeStr;
 
             const baseBedMins = timeToMinutes(bedStr);
@@ -203,38 +190,28 @@
             const baseWaso = parseInt(document.getElementById('base-waso').value) || 0;
             const baseActualSleep = (baseWakeMins - baseBedMins) - baseSol - baseWaso;
 
-            let initialPrescribedMins;
-            if (baseSol > 15 && baseWaso <= 15) {
-                initialPrescribedMins = (baseBedMins + baseSol) + 30;
-            } else {
-                initialPrescribedMins = baseWakeMins - (baseActualSleep - 30);
-            }
-
-            let targetBedMins;
-            let logicText = "";
+            let initialPrescribedMins = (baseSol > 15 && baseWaso <= 15) ? (baseBedMins + baseSol) + 30 : baseWakeMins - (baseActualSleep - 30);
+            let targetBedMins, logicText = "";
 
             if (count < 2) {
                 targetBedMins = initialPrescribedMins;
-                logicText = "Prescription based on baseline. Log at least 2 nights to enable rolling adjustments.";
+                logicText = "Current prescription based on your baseline. Log 2 nights to enable rolling adjustments.";
             } else {
                 const lastTwo = history.slice(-2);
                 const avgSol = (lastTwo[0].sol + lastTwo[1].sol) / 2;
                 const avgWaso = (lastTwo[0].waso + lastTwo[1].waso) / 2;
-
                 if (avgSol <= 15 && avgWaso <= 15) {
                     targetBedMins = initialPrescribedMins - 15;
-                    logicText = `Success! Previous 2-night average (SOL: ${avgSol}m, WASO: ${avgWaso}m) is ≤ 15m. Bedtime moved 15m earlier.`;
+                    logicText = `Success! Avg SOL/WASO (${avgSol}m/${avgWaso}m) ≤ 15m. Bedtime moved 15m earlier.`;
                 } else {
                     targetBedMins = initialPrescribedMins + 15;
-                    logicText = `Avg SOL/WASO (Last 2 nights: ${avgSol}m/${avgWaso}m) is above 15m. Bedtime moved 15m later to improve consolidation.`;
+                    logicText = `Avg SOL/WASO (${avgSol}m/${avgWaso}m) > 15m. Bedtime moved 15m later to help consolidation.`;
                 }
             }
 
-            let finalTIB = baseWakeMins - (targetBedMins % 1440);
-            if (finalTIB < 0) finalTIB += 1440;
-            if (finalTIB < 480) {
+            if ((baseWakeMins - (targetBedMins % 1440) + 1440) % 1440 < 480) {
                 targetBedMins = baseWakeMins - 480;
-                logicText += " <br><b>Minimum TIB:</b> Adjusted to maintain an 8-hour window.";
+                logicText += " <br><b>Minimum window:</b> Schedule adjusted to maintain 8 hours.";
             }
 
             document.getElementById('res-bed').innerText = minutesToTime(targetBedMins);
@@ -244,51 +221,42 @@
         function renderHistory() {
             const history = getHistory();
             const container = document.getElementById('history-list');
-            if (history.length === 0) {
-                container.innerHTML = `<span class="text-[10px] text-slate-400 italic">No sleep entries found.</span>`;
-                return;
-            }
-
-            container.innerHTML = history.slice().reverse().map((n, i) => {
-                const nightNum = history.length - i;
-                return `
+            container.innerHTML = history.length ? history.slice().reverse().map((n, i) => `
                 <div class="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm text-[11px]">
                     <div class="flex flex-col">
-                        <span class="font-bold text-indigo-500 uppercase text-[9px]">Night ${nightNum}</span>
+                        <span class="font-bold text-indigo-500 uppercase text-[9px]">Night ${history.length - i}</span>
                         <span class="font-bold text-slate-700">${n.displayDate}</span>
                     </div>
-                    <div class="text-slate-500">
-                        SOL: <span class="font-bold ${n.sol <= 15 ? 'text-green-500' : 'text-slate-700'}">${n.sol}m</span> | 
-                        WASO: <span class="font-bold ${n.waso <= 15 ? 'text-green-500' : 'text-slate-700'}">${n.waso}m</span>
-                    </div>
+                    <div class="text-slate-500">SOL: <b>${n.sol}m</b> | WASO: <b>${n.waso}m</b></div>
                     <i class="fa-solid ${n.sol <= 15 && n.waso <= 15 ? 'fa-circle-check text-green-400' : 'fa-circle-notch text-slate-200'}"></i>
-                </div>
-            `}).join('');
+                </div>`).join('') : '<span class="text-slate-400 italic text-xs">No entries yet.</span>';
         }
 
-        function timeToMinutes(timeStr) {
-            const [hrs, mins] = timeStr.split(':').map(Number);
-            return hrs * 60 + mins;
-        }
-
-        function minutesToTime(totalMins) {
-            let h = Math.floor(totalMins / 60) % 24;
-            if (h < 0) h += 24;
-            let m = Math.round(totalMins % 60);
-            return String(h).padStart(2, '0') + ":" + String(m).padStart(2, '0');
-        }
-
-        function clearHistory() {
-            if (confirm("Permanently delete all logs?")) {
-                localStorage.removeItem('sleep_tracker_v3');
-                renderHistory();
-                calculatePrescription();
-            }
-        }
+        function timeToMinutes(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+        function minutesToTime(m) { let h = Math.floor(m / 60) % 24; if (h < 0) h += 24; return String(h).padStart(2, '0') + ":" + String(Math.round(m % 60)).padStart(2, '0'); }
+        function clearHistory() { if (confirm("Clear history?")) { localStorage.removeItem('sleep_tracker_v3'); renderHistory(); calculatePrescription(); } }
 
         window.onload = () => {
-            renderHistory();
-            calculatePrescription();
+            const params = new URLSearchParams(window.location.search);
+            const mapping = { 'base_bed': 'base-bed', 'base_wake': 'base-wake', 'base_sol': 'base-sol', 'base_waso': 'base-waso' };
+            for (let [param, id] of Object.entries(mapping)) if (params.has(param)) document.getElementById(id).value = params.get(param);
+
+            // DISPLAY TODAY'S DATE
+            const today = new Date();
+            document.getElementById('today-display').innerText = today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+            // SET DEFAULT LOG DATE TO YESTERDAY
+            const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+            document.getElementById('daily-date').valueAsDate = yesterday;
+
+            renderHistory(); calculatePrescription();
+
+            if (params.has('sol_val') && params.has('waso_val')) {
+                document.getElementById('daily-sol').value = params.get('sol_val');
+                document.getElementById('daily-waso').value = params.get('waso_val');
+                logNight();
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
         };
     </script>
 </body>
