@@ -10,7 +10,6 @@
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-        /* Set body to transparent and remove background-color */
         body {
             font-family: 'Inter', sans-serif;
             background-color: transparent;
@@ -21,16 +20,12 @@
 
         .result-card {
             border: 2px dashed #5c5be5;
-            background-color: rgba(248, 250, 255, 0.8);
-            /* Slight opacity for readability on any background */
+            background-color: rgba(255, 255, 255, 0.5);
         }
 
-        /* Standardized container without forced margins */
         .app-container {
             max-width: 56rem;
-            /* max-w-4xl */
-            margin-left: auto;
-            margin-right: auto;
+            margin: auto;
             padding: 1rem;
         }
     </style>
@@ -45,7 +40,7 @@
         <input type="hidden" id="base-wake" value="07:00">
 
         <div
-            class="bg-white rounded-3xl border border-slate-100 p-8 flex flex-col items-center justify-center text-center">
+            class="bg-white/80 rounded-3xl border border-slate-100 p-8 flex flex-col items-center justify-center text-center">
             <div
                 class="px-5 py-2 rounded-full text-xs font-black uppercase mb-6 bg-indigo-600 text-white tracking-widest">
                 Prescription for Tonight
@@ -64,14 +59,14 @@
                 </div>
             </div>
 
-            <div id="logic-box" class="mt-8 p-5 bg-slate-50/50 rounded-2xl border border-slate-100 w-full">
+            <div id="logic-box" class="mt-8 p-5 bg-white/40 rounded-2xl border border-slate-100 w-full">
                 <p id="logic-info" class="text-[11px] text-slate-500 leading-relaxed font-medium italic">
-                    Updating from platform data...
+                    Analyzing baseline...
                 </p>
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl border border-slate-100 p-8">
+        <div class="bg-white/80 rounded-2xl border border-slate-100 p-8">
             <div class="flex justify-between items-center mb-8">
                 <h2 class="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
                     <i class="fa-solid fa-history text-indigo-500"></i> Your Sleep History
@@ -101,10 +96,11 @@
             const count = history.length;
 
             const wakeStr = document.getElementById('base-wake').value || "07:00";
-            const bedStr = document.getElementById('base-bed').value || "22:00";
+            const bedStr = document.getElementById('base-bed').value || "21:30";
             const baseSol = parseInt(document.getElementById('base-sol').value) || 0;
             const baseWaso = parseInt(document.getElementById('base-waso').value) || 0;
 
+            // Round Wake Up Time to nearest 5 mins
             const wakeMinsRounded = roundToNearest5(timeToMinutes(wakeStr));
             document.getElementById('res-wake').innerText = minutesToTime(wakeMinsRounded);
 
@@ -113,31 +109,43 @@
             if (baseWakeMins <= baseBedMins) baseWakeMins += 1440;
 
             const baseActualSleep = (baseWakeMins - baseBedMins) - baseSol - baseWaso;
-            let initialPrescribedMins = (baseSol > 15 && baseWaso <= 15) ? (baseBedMins + baseSol) + 30 : baseWakeMins - (baseActualSleep - 30);
+
+            // Calculate Baseline Anchor (Phase 1 Result)
+            let phase1PrescribedMins;
+            if (baseSol > 15 && baseWaso <= 15) {
+                phase1PrescribedMins = (baseBedMins + baseSol) + 30;
+            } else {
+                phase1PrescribedMins = baseWakeMins - (baseActualSleep - 30);
+            }
 
             let targetBedMins, logicText = "";
 
             if (count < 2) {
-                targetBedMins = initialPrescribedMins;
-                logicText = "Prescription based on baseline. Log more nights for adjustments.";
+                // Nights 1 and 2: Static Baseline Prescription
+                targetBedMins = phase1PrescribedMins;
+                logicText = `Initial Phase (Night ${count + 1}): Prescription based on baseline averages. Adjustments begin after logging 2 nights.`;
             } else {
+                // Night 3+: Rolling Adjustments (15m increments)
                 const lastTwo = history.slice(-2);
                 const avgSol = (lastTwo[0].sol + lastTwo[1].sol) / 2;
                 const avgWaso = (lastTwo[0].waso + lastTwo[1].waso) / 2;
 
                 if (avgSol <= 15 && avgWaso <= 15) {
-                    targetBedMins = initialPrescribedMins - 15;
-                    logicText = `Rolling Adjustment: Last 2-night avg ≤ 15m. Bedtime moved 15m earlier.`;
+                    targetBedMins = phase1PrescribedMins - 15;
+                    logicText = `Adjustment Phase: Last 2-night avg (SOL: ${avgSol}m, WASO: ${avgWaso}m) ≤ 15m. Bedtime moved 15m earlier.`;
                 } else {
-                    targetBedMins = initialPrescribedMins + 15;
-                    logicText = `Rolling Adjustment: Last 2-night avg > 15m. Bedtime moved 15m later.`;
+                    targetBedMins = phase1PrescribedMins + 15;
+                    logicText = `Adjustment Phase: Last 2-night avg (SOL: ${avgSol}m, WASO: ${avgWaso}m) > 15m. Bedtime moved 15m later.`;
                 }
             }
 
+            // Always round result to nearest 5 minutes
             targetBedMins = roundToNearest5(targetBedMins);
-            if ((baseWakeMins - (targetBedMins % 1440) + 1440) % 1440 < 480) {
+
+            // 8-hour Minimum TIB Guard
+            if (((baseWakeMins - (targetBedMins % 1440) + 1440) % 1440) < 480) {
                 targetBedMins = baseWakeMins - 480;
-                logicText += " <br><b>Note:</b> Adjusted to maintain 8h sleep window.";
+                logicText += " <br><b>Minimum Window:</b> Adjusted to maintain 8 hours.";
             }
 
             document.getElementById('res-bed').innerText = minutesToTime(targetBedMins);
@@ -148,7 +156,7 @@
             const history = getHistory();
             const container = document.getElementById('history-list');
             container.innerHTML = history.length ? history.slice().reverse().map((n, i) => `
-                <div class="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 text-[11px]">
+                <div class="flex items-center justify-between p-4 bg-white/60 rounded-2xl border border-slate-100 text-[11px]">
                     <div class="flex flex-col">
                         <span class="font-bold text-indigo-500 uppercase text-[9px]">Night ${history.length - i}</span>
                         <span class="font-bold text-slate-700">${n.displayDate}</span>
