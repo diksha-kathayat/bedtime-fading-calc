@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bedtime Fading Protocol</title>
+    <title>Bedtime Fading Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -16,25 +16,24 @@
             color: #2d3436;
         }
 
-        .result-container-dashed {
-            border: 2px dashed #e2e8f0;
-            background-color: #fbfcfd;
-        }
-
         .custom-shadow {
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.03);
         }
 
-        .active-tab {
-            border-bottom: 4px solid #5c5be5;
-            color: #5c5be5 !important;
+        .result-card {
+            border: 2px dashed #5c5be5;
+            background-color: #f8faff;
+        }
+
+        .hidden-section {
+            display: none;
         }
     </style>
 </head>
 
 <body class="py-12 px-4">
 
-    <header class="text-center mb-10">
+    <header class="text-center mb-8">
         <div class="inline-flex items-center justify-center px-6 py-3 mb-4 bg-[#eef2ff] rounded-xl">
             <div class="bg-[#5c5be5] p-2 rounded-lg text-white">
                 <i class="fa-solid fa-moon text-lg"></i>
@@ -43,195 +42,228 @@
         </div>
     </header>
 
-    <div class="max-w-5xl mx-auto">
-        <div class="flex border-b border-slate-200 mb-8 bg-white rounded-t-2xl px-4">
-            <button id="tab1-btn" onclick="switchTab(1)"
-                class="flex-1 py-4 font-bold text-slate-400 active-tab transition-all uppercase text-xs tracking-widest">
-                Phase 1: Starting 2 Nights
-            </button>
-            <button id="tab2-btn" onclick="switchTab(2)"
-                class="flex-1 py-4 font-bold text-slate-400 transition-all uppercase text-xs tracking-widest">
-                Phase 2: Adjustments (Night 3+)
+    <div class="max-w-4xl mx-auto space-y-10">
+
+        <div class="text-center">
+            <button onclick="toggleBaseline()"
+                class="text-[10px] font-bold text-slate-400 hover:text-indigo-500 uppercase tracking-widest transition-colors">
+                <i class="fa-solid fa-sliders mr-1"></i> Settings: Baseline Averages
             </button>
         </div>
 
-        <div id="tab1-content" class="space-y-6">
-            <div class="bg-white rounded-2xl custom-shadow border border-slate-100 overflow-hidden">
-                <div class="bg-[#5c5be5] px-6 py-4 text-white flex items-center justify-between">
-                    <span class="font-bold uppercase tracking-tight">Step 1: 7-Day Baseline Average</span>
-                    <span class="text-[10px] bg-white/20 px-2 py-1 rounded">BASELINE DATA</span>
+        <div id="baseline-section"
+            class="hidden-section bg-white rounded-2xl custom-shadow border border-slate-100 overflow-hidden">
+            <div class="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Avg Bedtime</label>
+                    <input type="time" id="base-bed" value="21:30" oninput="calculatePrescription()"
+                        class="w-full p-2 bg-slate-50 border rounded-lg font-mono text-sm">
                 </div>
-                <div class="p-8 grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Avg Bedtime</label>
-                        <input type="time" id="base-bed" value="21:30" oninput="runLogic()"
-                            class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-mono text-lg outline-none focus:ring-2 focus:ring-indigo-100">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Avg SOL (Min)</label>
-                        <input type="number" id="base-sol" value="60" oninput="runLogic()"
-                            class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-mono text-lg outline-none focus:ring-2 focus:ring-indigo-100">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Avg WASO (Min)</label>
-                        <input type="number" id="base-waso" value="10" oninput="runLogic()"
-                            class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-mono text-lg outline-none focus:ring-2 focus:ring-indigo-100">
-                    </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase mb-2 block">Avg Wake Time</label>
-                        <input type="time" id="base-wake" value="07:00" oninput="runLogic()"
-                            class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl font-mono text-lg outline-none focus:ring-2 focus:ring-indigo-100">
-                    </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Avg SOL (Min)</label>
+                    <input type="number" id="base-sol" value="60" oninput="calculatePrescription()"
+                        class="w-full p-2 bg-slate-50 border rounded-lg font-mono text-sm">
                 </div>
-            </div>
-
-            <div id="healthy-baseline-msg"
-                class="hidden bg-green-50 border-2 border-green-200 rounded-2xl p-10 text-center custom-shadow">
-                <div
-                    class="bg-green-500 text-white w-16 h-16 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
-                    <i class="fa-solid fa-face-smile"></i>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Avg WASO (Min)</label>
+                    <input type="number" id="base-waso" value="10" oninput="calculatePrescription()"
+                        class="w-full p-2 bg-slate-50 border rounded-lg font-mono text-sm">
                 </div>
-                <h2 class="text-2xl font-bold text-green-800 mb-2">Sleeping well!</h2>
-                <p class="text-green-700 font-medium">You don't need to be a part of this intervention.</p>
-            </div>
-
-            <div id="p1-result-box" class="bg-white rounded-2xl custom-shadow border border-slate-100 p-8 text-center">
-                <div id="case-badge"
-                    class="inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase mb-2 bg-teal-100 text-teal-600">
-                    Initial Case</div>
-                <p id="logic-desc" class="text-xs text-slate-400 mb-6 italic">Enter data to generate prescription.</p>
-
-                <div class="result-container-dashed p-10 rounded-3xl max-w-md mx-auto space-y-8">
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Initial
-                            Prescribed Bedtime</p>
-                        <span id="initial-res"
-                            class="text-6xl font-extrabold text-slate-800 tracking-tighter">--:--</span>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Initial
-                            Prescribed Wake up Time</p>
-                        <span id="initial-wake-res"
-                            class="text-6xl font-extrabold text-slate-800 tracking-tighter">--:--</span>
-                    </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Avg Wake Time</label>
+                    <input type="time" id="base-wake" value="07:00" oninput="calculatePrescription()"
+                        class="w-full p-2 bg-slate-50 border rounded-lg font-mono text-sm">
                 </div>
             </div>
         </div>
 
-        <div id="tab2-content" class="hidden space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="bg-white rounded-2xl custom-shadow border border-slate-100 p-8">
-                    <div class="flex justify-between items-center mb-6">
-                        <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest text-xs">Night 3+
-                            Adjustment Data</span>
-                        <button onclick="clearHistory()"
-                            class="text-[9px] text-slate-400 hover:text-red-500 uppercase font-bold">Clear Stored
-                            History</button>
-                    </div>
-
-                    <div class="space-y-6">
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 block mb-2">Current 2-Night SOL (Min)</label>
-                            <input type="number" id="adj-sol" oninput="runLogic()"
-                                class="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 text-lg font-mono">
-                        </div>
-                        <div>
-                            <label class="text-xs font-bold text-slate-500 block mb-2">Current 2-Night WASO
-                                (Min)</label>
-                            <input type="number" id="adj-waso" oninput="runLogic()"
-                                class="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 text-lg font-mono">
-                        </div>
-
-                        <div id="history-section" class="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            <p class="text-[10px] font-bold text-slate-400 uppercase mb-4 flex items-center gap-2">
-                                <i class="fa-solid fa-clock-rotate-left"></i> Progress Memory (SOL & WASO)
-                            </p>
-                            <div id="combined-history-list" class="space-y-3">
-                                <span class="text-[10px] text-slate-400 italic">Historical data will populate
-                                    here.</span>
-                            </div>
-                        </div>
-                    </div>
+        <div class="bg-white rounded-2xl custom-shadow border border-slate-100 p-8">
+            <h2 class="text-sm font-bold text-slate-800 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <i class="fa-solid fa-pen-nib text-indigo-500"></i> Daily Sleep Log
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Night of</label>
+                    <input type="date" id="daily-date"
+                        class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 font-medium text-sm">
                 </div>
-
-                <div
-                    class="bg-white rounded-2xl custom-shadow border border-slate-100 p-8 flex flex-col justify-center items-center text-center">
-                    <div id="adj-status"
-                        class="w-full mb-6 p-4 rounded-xl text-sm font-bold bg-slate-100 text-slate-500">Input
-                        adjustment data</div>
-                    <div class="result-container-dashed p-8 rounded-3xl w-full space-y-6">
-                        <div>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Adjusted
-                                Prescribed Bedtime</p>
-                            <span id="adj-res"
-                                class="text-6xl font-extrabold text-slate-800 tracking-tighter">--:--</span>
-                        </div>
-                        <div>
-                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Prescribed
-                                Wake up Time</p>
-                            <span id="adj-wake-res"
-                                class="text-6xl font-extrabold text-slate-800 tracking-tighter">--:--</span>
-                        </div>
-                    </div>
-                    <div id="done-msg"
-                        class="hidden mt-6 text-green-600 font-extrabold text-sm flex items-center gap-2">
-                        <i class="fa-solid fa-circle-check"></i> Goal Met (Both values ≤ 15m)
-                    </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Time to Fall Asleep
+                        (SOL)</label>
+                    <input type="number" id="daily-sol" placeholder="Minutes"
+                        class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 font-mono">
                 </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Time Awake in Night
+                        (WASO)</label>
+                    <input type="number" id="daily-waso" placeholder="Minutes"
+                        class="w-full p-3 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-indigo-100 font-mono">
+                </div>
+            </div>
+            <button onclick="logNight()"
+                class="mt-6 w-full bg-slate-800 text-white font-bold py-4 rounded-xl hover:bg-slate-900 transition-all shadow-lg">
+                Save Night & Update Prescription
+            </button>
+        </div>
+
+        <div
+            class="bg-white rounded-3xl custom-shadow border border-slate-100 p-8 flex flex-col items-center justify-center text-center">
+            <div
+                class="px-5 py-2 rounded-full text-xs font-black uppercase mb-6 bg-indigo-600 text-white tracking-widest">
+                Prescription for Tonight
+            </div>
+
+            <div
+                class="result-card p-10 rounded-[2.5rem] w-full max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-8 relative">
+                <div>
+                    <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Prescribed Bedtime
+                    </p>
+                    <span id="res-bed" class="text-6xl font-extrabold text-slate-800 tracking-tighter">--:--</span>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Prescribed Wake Up
+                    </p>
+                    <span id="res-wake" class="text-6xl font-extrabold text-slate-800 tracking-tighter">--:--</span>
+                </div>
+            </div>
+
+            <div id="logic-box" class="mt-8 p-5 bg-slate-50 rounded-2xl border border-slate-100 w-full max-w-3xl">
+                <p id="logic-info" class="text-[11px] text-slate-500 leading-relaxed font-medium">
+                    Please log your sleep data above to see your adjusted schedule.
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl custom-shadow border border-slate-100 p-8">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <i class="fa-solid fa-history text-indigo-500"></i> Your Sleep History
+                </h2>
+                <button onclick="clearHistory()"
+                    class="text-[9px] text-red-400 font-bold uppercase hover:underline">Reset All History</button>
+            </div>
+            <div id="history-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2">
             </div>
         </div>
     </div>
 
     <script>
-        // --- DATA PERSISTENCE ---
-        function saveEntry(sol, waso) {
-            if (isNaN(sol) || isNaN(waso)) return;
-            let history = JSON.parse(localStorage.getItem('sleep_protocol_history') || "[]");
-            const lastEntry = history[history.length - 1];
+        // Default date to yesterday
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        document.getElementById('daily-date').valueAsDate = yesterday;
 
-            if (!lastEntry || lastEntry.sol !== sol || lastEntry.waso !== waso) {
-                history.push({ sol, waso, ts: new Date().toLocaleDateString() });
-                if (history.length > 20) history.shift();
-                localStorage.setItem('sleep_protocol_history', JSON.stringify(history));
-                updateHistoryUI();
+        function toggleBaseline() {
+            const section = document.getElementById('baseline-section');
+            section.classList.toggle('hidden-section');
+        }
+
+        function getHistory() {
+            return JSON.parse(localStorage.getItem('sleep_tracker_v3') || "[]");
+        }
+
+        function logNight() {
+            const dateVal = document.getElementById('daily-date').value;
+            const sol = parseInt(document.getElementById('daily-sol').value);
+            const waso = parseInt(document.getElementById('daily-waso').value);
+
+            if (!dateVal || isNaN(sol) || isNaN(waso)) {
+                alert("Please ensure Date, SOL, and WASO are filled.");
+                return;
             }
+
+            const dateObj = new Date(dateVal + 'T00:00:00');
+            const formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+
+            let history = getHistory();
+            history.push({ sol, waso, displayDate: formattedDate, rawDate: dateVal });
+            history.sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+
+            localStorage.setItem('sleep_tracker_v3', JSON.stringify(history));
+            document.getElementById('daily-sol').value = '';
+            document.getElementById('daily-waso').value = '';
+
+            renderHistory();
+            calculatePrescription();
         }
 
-        function updateHistoryUI() {
-            const history = JSON.parse(localStorage.getItem('sleep_protocol_history') || "[]");
-            const listEl = document.getElementById('combined-history-list');
-            if (history.length === 0) return;
+        function calculatePrescription() {
+            const history = getHistory();
+            const count = history.length;
+            const wakeStr = document.getElementById('base-wake').value;
+            const bedStr = document.getElementById('base-bed').value;
 
-            listEl.innerHTML = history.map((entry, idx) => `
-                <div class="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
-                    <div class="flex flex-col"><span class="text-[9px] font-bold text-slate-400">ENTRY ${idx + 1}</span></div>
-                    <div class="flex gap-4">
-                        <div class="text-center"><span class="block text-[8px] text-slate-400">SOL</span><span class="text-xs font-bold ${entry.sol <= 15 ? 'text-green-500' : 'text-slate-700'}">${entry.sol}m</span></div>
-                        <div class="text-center"><span class="block text-[8px] text-slate-400">WASO</span><span class="text-xs font-bold ${entry.waso <= 15 ? 'text-green-500' : 'text-slate-700'}">${entry.waso}m</span></div>
-                    </div>
-                    <i class="fa-solid ${entry.sol <= 15 && entry.waso <= 15 ? 'fa-circle-check text-green-400' : 'fa-circle-notch text-slate-200'}"></i>
-                </div>
-            `).join('');
-        }
+            document.getElementById('res-wake').innerText = wakeStr;
 
-        function clearHistory() {
-            if (confirm("Clear browser memory for this form?")) {
-                localStorage.removeItem('sleep_protocol_history');
-                location.reload();
-            }
-        }
+            const baseBedMins = timeToMinutes(bedStr);
+            let baseWakeMins = timeToMinutes(wakeStr);
+            if (baseWakeMins <= baseBedMins) baseWakeMins += 1440;
 
-        // --- CORE CALCULATIONS ---
-        function switchTab(step) {
-            const t1 = document.getElementById('tab1-content'), t2 = document.getElementById('tab2-content');
-            const b1 = document.getElementById('tab1-btn'), b2 = document.getElementById('tab2-btn');
-            if (step === 1) {
-                t1.classList.remove('hidden'); t2.classList.add('hidden');
-                b1.classList.add('active-tab'); b2.classList.remove('active-tab');
+            const baseSol = parseInt(document.getElementById('base-sol').value) || 0;
+            const baseWaso = parseInt(document.getElementById('base-waso').value) || 0;
+            const baseActualSleep = (baseWakeMins - baseBedMins) - baseSol - baseWaso;
+
+            let initialPrescribedMins;
+            if (baseSol > 15 && baseWaso <= 15) {
+                initialPrescribedMins = (baseBedMins + baseSol) + 30;
             } else {
-                t1.classList.add('hidden'); t2.classList.remove('hidden');
-                b1.classList.remove('active-tab'); b2.classList.add('active-tab');
+                initialPrescribedMins = baseWakeMins - (baseActualSleep - 30);
             }
+
+            let targetBedMins;
+            let logicText = "";
+
+            if (count < 2) {
+                targetBedMins = initialPrescribedMins;
+                logicText = "Prescription based on baseline. Log at least 2 nights to enable rolling adjustments.";
+            } else {
+                const lastTwo = history.slice(-2);
+                const avgSol = (lastTwo[0].sol + lastTwo[1].sol) / 2;
+                const avgWaso = (lastTwo[0].waso + lastTwo[1].waso) / 2;
+
+                if (avgSol <= 15 && avgWaso <= 15) {
+                    targetBedMins = initialPrescribedMins - 15;
+                    logicText = `Success! Previous 2-night average (SOL: ${avgSol}m, WASO: ${avgWaso}m) is ≤ 15m. Bedtime moved 15m earlier.`;
+                } else {
+                    targetBedMins = initialPrescribedMins + 15;
+                    logicText = `Avg SOL/WASO (Last 2 nights: ${avgSol}m/${avgWaso}m) is above 15m. Bedtime moved 15m later to improve consolidation.`;
+                }
+            }
+
+            let finalTIB = baseWakeMins - (targetBedMins % 1440);
+            if (finalTIB < 0) finalTIB += 1440;
+            if (finalTIB < 480) {
+                targetBedMins = baseWakeMins - 480;
+                logicText += " <br><b>Minimum TIB:</b> Adjusted to maintain an 8-hour window.";
+            }
+
+            document.getElementById('res-bed').innerText = minutesToTime(targetBedMins);
+            document.getElementById('logic-info').innerHTML = logicText;
+        }
+
+        function renderHistory() {
+            const history = getHistory();
+            const container = document.getElementById('history-list');
+            if (history.length === 0) {
+                container.innerHTML = `<span class="text-[10px] text-slate-400 italic">No sleep entries found.</span>`;
+                return;
+            }
+
+            container.innerHTML = history.slice().reverse().map((n, i) => {
+                const nightNum = history.length - i;
+                return `
+                <div class="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm text-[11px]">
+                    <div class="flex flex-col">
+                        <span class="font-bold text-indigo-500 uppercase text-[9px]">Night ${nightNum}</span>
+                        <span class="font-bold text-slate-700">${n.displayDate}</span>
+                    </div>
+                    <div class="text-slate-500">
+                        SOL: <span class="font-bold ${n.sol <= 15 ? 'text-green-500' : 'text-slate-700'}">${n.sol}m</span> | 
+                        WASO: <span class="font-bold ${n.waso <= 15 ? 'text-green-500' : 'text-slate-700'}">${n.waso}m</span>
+                    </div>
+                    <i class="fa-solid ${n.sol <= 15 && n.waso <= 15 ? 'fa-circle-check text-green-400' : 'fa-circle-notch text-slate-200'}"></i>
+                </div>
+            `}).join('');
         }
 
         function timeToMinutes(timeStr) {
@@ -246,120 +278,17 @@
             return String(h).padStart(2, '0') + ":" + String(m).padStart(2, '0');
         }
 
-        let saveTimeout;
-        function runLogic() {
-            const bedStr = document.getElementById('base-bed').value;
-            const wakeStr = document.getElementById('base-wake').value;
-            const sol = parseInt(document.getElementById('base-sol').value) || 0;
-            const waso = parseInt(document.getElementById('base-waso').value) || 0;
-
-            if (!bedStr || !wakeStr) return;
-
-            // Phase 1 Display Update
-            document.getElementById('initial-wake-res').innerText = wakeStr;
-            document.getElementById('adj-wake-res').innerText = wakeStr;
-
-            const msgEl = document.getElementById('healthy-baseline-msg');
-            const resultBox = document.getElementById('p1-result-box');
-            const tab2Btn = document.getElementById('tab2-btn');
-
-            if (sol <= 15 && waso <= 15) {
-                msgEl.classList.remove('hidden');
-                resultBox.classList.add('hidden');
-                tab2Btn.classList.add('opacity-50', 'pointer-events-none');
-                return;
-            } else {
-                msgEl.classList.add('hidden');
-                resultBox.classList.remove('hidden');
-                tab2Btn.classList.remove('opacity-50', 'pointer-events-none');
-            }
-
-            let bedMins = timeToMinutes(bedStr);
-            let wakeMins = timeToMinutes(wakeStr);
-            if (wakeMins <= bedMins) wakeMins += 1440;
-            let actualSleep = (wakeMins - bedMins) - sol - waso;
-
-            let prescribedMins;
-            let caseLabel = "";
-            let logicDetail = "";
-
-            // --- RESTORED CASE LOGIC ---
-            if (sol > 15 && waso <= 15) {
-                caseLabel = "Case 1: Sleep Onset Issues";
-                prescribedMins = (bedMins + sol) + 30;
-                logicDetail = "30 mins later than average sleep onset time.";
-            } else if (sol <= 15 && waso > 15) {
-                caseLabel = "Case 2: Night Waking Issues";
-                prescribedMins = wakeMins - (actualSleep - 30);
-                logicDetail = "Time-in-Bed set to 30 mins less than average sleep duration.";
-            } else {
-                caseLabel = "Case 3: Combined Sleep Issues";
-                prescribedMins = wakeMins - (actualSleep - 30);
-                logicDetail = "Time-in-Bed set to 30 mins less than average sleep duration.";
-            }
-
-            // 8-hour Minimum TIB
-            let currentTIB = wakeMins - (prescribedMins % 1440);
-            if (currentTIB < 0) currentTIB += 1440;
-            if (currentTIB < 480) {
-                prescribedMins = wakeMins - 480;
-                logicDetail += " (Adjusted to 8-hour minimum)";
-            }
-
-            document.getElementById('case-badge').innerText = caseLabel;
-            document.getElementById('initial-res').innerText = minutesToTime(prescribedMins);
-            document.getElementById('logic-desc').innerText = logicDetail;
-
-            // Phase 2 Logic
-            const aSol = parseInt(document.getElementById('adj-sol').value);
-            const aWaso = parseInt(document.getElementById('adj-waso').value);
-
-            if (!isNaN(aSol) && !isNaN(aWaso)) {
-                // Persistent memory save
-                clearTimeout(saveTimeout);
-                saveTimeout = setTimeout(() => saveEntry(aSol, aWaso), 1500);
-
-                let finalMins = prescribedMins;
-                const statusBox = document.getElementById('adj-status');
-                if (aSol <= 15 && aWaso <= 15) {
-                    finalMins -= 15;
-                    statusBox.innerText = "Criteria Met. Bedtime moved 15 mins earlier.";
-                    statusBox.className = "w-full mb-6 p-4 rounded-xl text-sm font-bold bg-green-100 text-green-700";
-                    document.getElementById('done-msg').classList.remove('hidden');
-                } else {
-                    finalMins += 15;
-                    statusBox.innerText = "Difficulty remains. Bedtime moved 15 mins later.";
-                    statusBox.className = "w-full mb-6 p-4 rounded-xl text-sm font-bold bg-orange-100 text-orange-700";
-                    document.getElementById('done-msg').classList.add('hidden');
-                }
-                document.getElementById('adj-res').innerText = minutesToTime(finalMins);
+        function clearHistory() {
+            if (confirm("Permanently delete all logs?")) {
+                localStorage.removeItem('sleep_tracker_v3');
+                renderHistory();
+                calculatePrescription();
             }
         }
 
-        function prefillFromParams() {
-            const params = new URLSearchParams(window.location.search);
-
-            // Baseline Prefills
-            const p1Mapping = { 'avgbedtime': 'base-bed', 'avgwake': 'base-wake', 'avgsol': 'base-sol', 'avgwaso': 'base-waso' };
-            for (const [param, id] of Object.entries(p1Mapping)) {
-                if (params.has(param)) document.getElementById(id).value = params.get(param);
-            }
-
-            // Adjustment Prefills (Night 3+)
-            const psol = params.get('sol_adj');
-            const pwaso = params.get('waso_adj');
-            if (psol !== null || pwaso !== null) {
-                if (psol !== null) document.getElementById('adj-sol').value = psol;
-                if (pwaso !== null) document.getElementById('adj-waso').value = pwaso;
-                switchTab(2); // Auto-navigate to Phase 2
-            }
-
-            runLogic();
-        }
-
-        window.onload = function () {
-            prefillFromParams();
-            updateHistoryUI();
+        window.onload = () => {
+            renderHistory();
+            calculatePrescription();
         };
     </script>
 </body>
