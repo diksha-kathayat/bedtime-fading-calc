@@ -34,7 +34,6 @@
         <input type="hidden" id="base-sol" value="60">
         <input type="hidden" id="base-waso" value="10">
         <input type="hidden" id="base-wake" value="07:00">
-        <input type="hidden" id="daily-date">
         <input type="hidden" id="daily-sol">
         <input type="hidden" id="daily-waso">
 
@@ -61,7 +60,7 @@
 
             <div id="logic-box" class="mt-8 p-5 bg-slate-50 rounded-2xl border border-slate-100 w-full max-w-3xl">
                 <p id="logic-info" class="text-[11px] text-slate-500 leading-relaxed font-medium italic">
-                    Initializing calculation...
+                    Calculating based on parameters...
                 </p>
             </div>
         </div>
@@ -95,24 +94,35 @@
             return String(h).padStart(2, '0') + ":" + String(mins).padStart(2, '0');
         }
 
+        // New Helper: Round minutes to nearest 5
+        function roundToNearest5(m) {
+            return Math.round(m / 5) * 5;
+        }
+
         function calculatePrescription() {
             const history = getHistory();
             const count = history.length;
 
-            const wakeStr = document.getElementById('base-wake').value || "07:00";
+            let wakeStr = document.getElementById('base-wake').value || "07:00";
             const bedStr = document.getElementById('base-bed').value || "22:00";
             const baseSol = parseInt(document.getElementById('base-sol').value) || 0;
             const baseWaso = parseInt(document.getElementById('base-waso').value) || 0;
 
-            // Display Wake Time
-            document.getElementById('res-wake').innerText = wakeStr.substring(0, 5);
+            // Round the baseline wake time to nearest 5 minutes
+            let wakeMinsRaw = timeToMinutes(wakeStr);
+            let wakeMinsRounded = roundToNearest5(wakeMinsRaw);
+            const roundedWakeStr = minutesToTime(wakeMinsRounded);
+
+            // Set UI display for Wake Time (remains constant)
+            document.getElementById('res-wake').innerText = roundedWakeStr;
 
             const baseBedMins = timeToMinutes(bedStr);
-            let baseWakeMins = timeToMinutes(wakeStr);
+            let baseWakeMins = wakeMinsRounded; // Use rounded wake mins for logic
             if (baseWakeMins <= baseBedMins) baseWakeMins += 1440;
 
             const baseActualSleep = (baseWakeMins - baseBedMins) - baseSol - baseWaso;
 
+            // Initial Case Logic
             let initialPrescribedMins = (baseSol > 15 && baseWaso <= 15) ? (baseBedMins + baseSol) + 30 : baseWakeMins - (baseActualSleep - 30);
             let targetBedMins, logicText = "";
 
@@ -127,7 +137,7 @@
                 }
             } else if (count < 2) {
                 targetBedMins = initialPrescribedMins;
-                logicText = "Prescription based on baseline. Log 2 nights for adjustments.";
+                logicText = "Using baseline calculation. Log 2 nights to enable rolling adjustments.";
             } else {
                 const lastTwo = history.slice(-2);
                 const avgSol = (lastTwo[0].sol + lastTwo[1].sol) / 2;
@@ -140,6 +150,9 @@
                     logicText = `Difficulty! Last 2-night avg > 15m. Bedtime moved 15m later.`;
                 }
             }
+
+            // Ensure Prescribed Bedtime is also rounded to nearest 5 minutes
+            targetBedMins = roundToNearest5(targetBedMins);
 
             // 8-hour Minimum Guard
             if ((baseWakeMins - (targetBedMins % 1440) + 1440) % 1440 < 480) {
@@ -161,7 +174,7 @@
                         <span class="font-bold text-slate-700">${n.displayDate}</span>
                     </div>
                     <div class="text-slate-500 font-mono">SOL: ${n.sol}m | WASO: ${n.waso}m</div>
-                </div>`).join('') : '<span class="text-slate-400 italic text-xs">No entries.</span>';
+                </div>`).join('') : '<span class="text-slate-400 italic text-xs">No entries found.</span>';
         }
 
         function logNight(sol, waso) {
@@ -185,13 +198,11 @@
         window.onload = () => {
             const params = new URLSearchParams(window.location.search);
 
-            // Map URL params to hidden inputs
             if (params.has('base_bed')) document.getElementById('base-bed').value = params.get('base_bed');
             if (params.has('base_wake')) document.getElementById('base-wake').value = params.get('base_wake');
             if (params.has('base_sol')) document.getElementById('base-sol').value = params.get('base_sol');
             if (params.has('base_waso')) document.getElementById('base-waso').value = params.get('base_waso');
 
-            // Handle Platform Averages
             if (params.has('avgsol') && params.has('avgwaso')) {
                 window.platformData = {
                     avgSol: parseFloat(params.get('avgsol')),
@@ -199,16 +210,12 @@
                 };
             }
 
-            // Handle Daily Values
             if (params.has('sol_val') && params.has('waso_val')) {
                 logNight(params.get('sol_val'), params.get('waso_val'));
             } else {
                 renderHistory();
                 calculatePrescription();
             }
-
-            // Clean URL (optional, remove if you want to see params after load)
-            // window.history.replaceState({}, document.title, window.location.pathname);
         };
     </script>
 </body>
