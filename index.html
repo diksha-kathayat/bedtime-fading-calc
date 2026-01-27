@@ -193,7 +193,16 @@
             let initialPrescribedMins = (baseSol > 15 && baseWaso <= 15) ? (baseBedMins + baseSol) + 30 : baseWakeMins - (baseActualSleep - 30);
             let targetBedMins, logicText = "";
 
-            if (count < 2) {
+            if (window.platformData) {
+                const { avgSol, avgWaso } = window.platformData;
+                if (avgSol <= 15 && avgWaso <= 15) {
+                    targetBedMins = initialPrescribedMins - 15;
+                    logicText = `Platform Data: Avg SOL/WASO (${avgSol}m/${avgWaso}m) ≤ 15m. Bedtime moved 15m earlier.`;
+                } else {
+                    targetBedMins = initialPrescribedMins + 15;
+                    logicText = `Platform Data: Avg SOL/WASO (${avgSol}m/${avgWaso}m) > 15m. Bedtime moved 15m later to help consolidation.`;
+                }
+            } else if (count < 2) {
                 targetBedMins = initialPrescribedMins;
                 logicText = "Current prescription based on your baseline. Log 2 nights to enable rolling adjustments.";
             } else {
@@ -238,8 +247,16 @@
 
         window.onload = () => {
             const params = new URLSearchParams(window.location.search);
-            const mapping = { 'base_bed': 'base-bed', 'base_wake': 'base-wake', 'base_sol': 'base-sol', 'base_waso': 'base-waso' };
+            const mapping = { 'base_bed': 'base-bed', 'base_wake': 'base-wake', 'base_sol': 'base-sol', 'base-waso': 'base-waso' };
             for (let [param, id] of Object.entries(mapping)) if (params.has(param)) document.getElementById(id).value = params.get(param);
+
+            // Capture platform average params
+            if (params.has('avgsol') && params.has('avgwaso')) {
+                window.platformData = {
+                    avgSol: parseFloat(params.get('avgsol')),
+                    avgWaso: parseFloat(params.get('avgwaso'))
+                };
+            }
 
             // DISPLAY TODAY'S DATE
             const today = new Date();
