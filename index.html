@@ -61,7 +61,7 @@
 
             <div id="logic-box" class="mt-8 p-5 bg-white/40 rounded-2xl border border-slate-100 w-full">
                 <p id="logic-info" class="text-[11px] text-slate-500 leading-relaxed font-medium italic">
-                    Analyzing baseline...
+                    Analyzing historical bedtime data...
                 </p>
             </div>
         </div>
@@ -95,56 +95,57 @@
             const history = getHistory();
             const count = history.length;
 
-            const wakeStr = document.getElementById('base-wake').value || "07:00";
-            const bedStr = document.getElementById('base-bed').value || "21:30";
+            const baseWakeStr = document.getElementById('base-wake').value || "07:00";
+            const baseBedStr = document.getElementById('base-bed').value || "21:30";
             const baseSol = parseInt(document.getElementById('base-sol').value) || 0;
             const baseWaso = parseInt(document.getElementById('base-waso').value) || 0;
 
-            // Round Wake Up Time to nearest 5 mins
-            const wakeMinsRounded = roundToNearest5(timeToMinutes(wakeStr));
+            const wakeMinsRounded = roundToNearest5(timeToMinutes(baseWakeStr));
             document.getElementById('res-wake').innerText = minutesToTime(wakeMinsRounded);
 
-            const baseBedMins = timeToMinutes(bedStr);
-            let baseWakeMins = wakeMinsRounded;
-            if (baseWakeMins <= baseBedMins) baseWakeMins += 1440;
+            const baseBedMins = timeToMinutes(baseBedStr);
+            let baseWakeMinsTotal = wakeMinsRounded;
+            if (baseWakeMinsTotal <= baseBedMins) baseWakeMinsTotal += 1440;
 
-            const baseActualSleep = (baseWakeMins - baseBedMins) - baseSol - baseWaso;
+            const baseActualSleep = (baseWakeMinsTotal - baseBedMins) - baseSol - baseWaso;
 
-            // Calculate Baseline Anchor (Phase 1 Result)
-            let phase1PrescribedMins;
+            // Baseline Prescription (Static for first 2 nights)
+            let baselinePrescribedMins;
             if (baseSol > 15 && baseWaso <= 15) {
-                phase1PrescribedMins = (baseBedMins + baseSol) + 30;
+                baselinePrescribedMins = (baseBedMins + baseSol) + 30;
             } else {
-                phase1PrescribedMins = baseWakeMins - (baseActualSleep - 30);
+                baselinePrescribedMins = baseWakeMinsTotal - (baseActualSleep - 30);
             }
 
             let targetBedMins, logicText = "";
 
             if (count < 2) {
-                // Nights 1 and 2: Static Baseline Prescription
-                targetBedMins = phase1PrescribedMins;
-                logicText = `Initial Phase (Night ${count + 1}): Prescription based on baseline averages. Adjustments begin after logging 2 nights.`;
+                // Initial static phase
+                targetBedMins = baselinePrescribedMins;
+                logicText = `Initial Phase: Using baseline calculation. Adjustments based on previous night's bedtime start after Night 2.`;
             } else {
-                // Night 3+: Rolling Adjustments (15m increments)
+                // Adjustment phase based on PREVIOUS NIGHT'S ACTUAL BEDTIME
+                const lastEntry = history[count - 1];
                 const lastTwo = history.slice(-2);
+
+                const prevBedtimeMins = timeToMinutes(lastEntry.bedtime);
                 const avgSol = (lastTwo[0].sol + lastTwo[1].sol) / 2;
                 const avgWaso = (lastTwo[0].waso + lastTwo[1].waso) / 2;
 
                 if (avgSol <= 15 && avgWaso <= 15) {
-                    targetBedMins = phase1PrescribedMins - 15;
-                    logicText = `Adjustment Phase: Last 2-night avg (SOL: ${avgSol}m, WASO: ${avgWaso}m) ≤ 15m. Bedtime moved 15m earlier.`;
+                    targetBedMins = prevBedtimeMins - 15;
+                    logicText = `Adjustment Phase: Avg SOL/WASO (${avgSol}m/${avgWaso}m) ≤ 15m. Moving 15m earlier than previous night's bedtime (${lastEntry.bedtime}).`;
                 } else {
-                    targetBedMins = phase1PrescribedMins + 15;
-                    logicText = `Adjustment Phase: Last 2-night avg (SOL: ${avgSol}m, WASO: ${avgWaso}m) > 15m. Bedtime moved 15m later.`;
+                    targetBedMins = prevBedtimeMins + 15;
+                    logicText = `Adjustment Phase: Avg SOL/WASO (${avgSol}m/${avgWaso}m) > 15m. Moving 15m later than previous night's bedtime (${lastEntry.bedtime}).`;
                 }
             }
 
-            // Always round result to nearest 5 minutes
             targetBedMins = roundToNearest5(targetBedMins);
 
-            // 8-hour Minimum TIB Guard
-            if (((baseWakeMins - (targetBedMins % 1440) + 1440) % 1440) < 480) {
-                targetBedMins = baseWakeMins - 480;
+            // Minimum 8-hour window check
+            if (((wakeMinsRounded - (targetBedMins % 1440) + 1440) % 1440) < 480) {
+                targetBedMins = wakeMinsRounded - 480;
                 logicText += " <br><b>Minimum Window:</b> Adjusted to maintain 8 hours.";
             }
 
@@ -156,16 +157,16 @@
             const history = getHistory();
             const container = document.getElementById('history-list');
             container.innerHTML = history.length ? history.slice().reverse().map((n, i) => `
-                <div class="flex items-center justify-between p-4 bg-white/60 rounded-2xl border border-slate-100 text-[11px]">
-                    <div class="flex flex-col">
-                        <span class="font-bold text-indigo-500 uppercase text-[9px]">Night ${history.length - i}</span>
-                        <span class="font-bold text-slate-700">${n.displayDate}</span>
+                <div class="flex flex-col p-4 bg-white/60 rounded-2xl border border-slate-100 text-[11px] space-y-1">
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-indigo-500 uppercase text-[9px]">Night ${history.length - i} - ${n.displayDate}</span>
+                        <span class="text-slate-500 font-mono">SOL: ${n.sol}m | WASO: ${n.waso}m</span>
                     </div>
-                    <div class="text-slate-500 font-mono">SOL: ${n.sol}m | WASO: ${n.waso}m</div>
+                    <div class="text-[9px] text-slate-400">Actual Bedtime: ${n.bedtime} | Wakeup: ${n.wakeup}</div>
                 </div>`).join('') : '<span class="text-slate-400 italic text-xs">No entries.</span>';
         }
 
-        function processLog(sol, waso, customDateStr) {
+        function processLog(sol, waso, customDateStr, prevBedtime, prevWakeup) {
             const logDate = parseCustomDate(customDateStr);
             if (!logDate) return;
 
@@ -174,7 +175,14 @@
 
             let history = getHistory();
             if (!history.some(e => e.rawDate === dateKey)) {
-                history.push({ sol: parseInt(sol), waso: parseInt(waso), displayDate: displayDate, rawDate: dateKey });
+                history.push({
+                    sol: parseInt(sol),
+                    waso: parseInt(waso),
+                    displayDate: displayDate,
+                    rawDate: dateKey,
+                    bedtime: prevBedtime || "N/A",
+                    wakeup: prevWakeup || "N/A"
+                });
                 history.sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
                 localStorage.setItem('sleep_tracker_v3', JSON.stringify(history));
             }
@@ -187,13 +195,17 @@
         window.onload = () => {
             const params = new URLSearchParams(window.location.search);
 
+            // Baseline Params
             if (params.has('base_bed')) document.getElementById('base-bed').value = params.get('base_bed');
             if (params.has('base_wake')) document.getElementById('base-wake').value = params.get('base_wake');
             if (params.has('base_sol')) document.getElementById('base-sol').value = params.get('base_sol');
             if (params.has('base_waso')) document.getElementById('base-waso').value = params.get('base_waso');
 
+            // Daily Log Params (including previous night's actual times)
             if (params.has('sol_val') && params.has('waso_val') && params.has('date_val')) {
-                processLog(params.get('sol_val'), params.get('waso_val'), params.get('date_val'));
+                const prevBed = params.get('prev_bed') || "N/A";
+                const prevWake = params.get('prev_wake') || "N/A";
+                processLog(params.get('sol_val'), params.get('waso_val'), params.get('date_val'), prevBed, prevWake);
             } else {
                 renderHistory();
                 calculatePrescription();
