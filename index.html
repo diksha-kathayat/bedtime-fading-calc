@@ -1,55 +1,201 @@
-<script>
-    function minutesToTime(m) {
-        let totalMins = Math.round(m);
-        // Corrects the negative minutes/wraparound bug
-        while (totalMins < 0) totalMins += 1440;
+<!DOCTYPE html>
+<html lang="en">
 
-        let h = Math.floor(totalMins / 60) % 24;
-        let mins = totalMins % 60;
-        return String(h).padStart(2, '0') + ":" + String(mins).padStart(2, '0');
-    }
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bedtime Fading Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
-    function calculatePrescription() {
-        const history = getHistory();
-        const count = history.length;
-
-        // Baseline Inputs
-        const bWake = document.getElementById('base-wake').value; // 09:27
-        const bBed = document.getElementById('base-bed').value;   // 09:08
-        const bSol = parseInt(document.getElementById('base-sol').value); // 18
-        const bWaso = parseInt(document.getElementById('base-waso').value); // 5
-
-        const wakeMins = roundToNearest5(timeToMinutes(bWake));
-        document.getElementById('res-wake').innerText = minutesToTime(wakeMins);
-
-        const bBedMins = timeToMinutes(bBed);
-        let wakeTotal = wakeMins; if (wakeTotal <= bBedMins) wakeTotal += 1440;
-        const bActualSleep = (wakeTotal - bBedMins) - bSol - bWaso;
-
-        // The "Phase 1" Anchor (Static Result: 09:55)
-        let phase1Bed = (bSol > 15 && bWaso <= 15) ? (bBedMins + bSol) + 30 : wakeTotal - (bActualSleep - 30);
-
-        let targetBed;
-        if (count < 2) {
-            // FORCE 09:55 for the first two nights regardless of log
-            targetBed = phase1Bed;
-            document.getElementById('logic-info').innerText = `Static Phase (Night ${count + 1}): Prescription is fixed at ${minutesToTime(phase1Bed)}.`;
-        } else {
-            // START ADJUSTMENTS on Night 3
-            const lastLog = history[count - 1];
-            const last2 = history.slice(-2);
-            const avgSol = (last2[0].sol + last2[1].sol) / 2;
-            const avgWaso = (last2[0].waso + last2[1].waso) / 2;
-            const prevBedMins = timeToMinutes(lastLog.bedtime);
-
-            if (avgSol <= 15 && avgWaso <= 15) {
-                targetBed = prevBedMins - 15;
-            } else {
-                targetBed = prevBedMins + 15;
-            }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: transparent;
+            color: #2d3436;
+            margin: 0;
+            padding: 0;
         }
 
-        targetBed = roundToNearest5(targetBed);
-        document.getElementById('res-bed').innerText = minutesToTime(targetBed);
-    }
-</script>
+        .result-card {
+            border: 2px dashed #5c5be5;
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .app-container {
+            max-width: 56rem;
+            margin: auto;
+            padding: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container space-y-10">
+        <input type="hidden" id="base-bed" value="09:08">
+        <input type="hidden" id="base-sol" value="18">
+        <input type="hidden" id="base-waso" value="5">
+        <input type="hidden" id="base-wake" value="09:27">
+
+        <div
+            class="bg-white/80 rounded-3xl border border-slate-100 p-8 flex flex-col items-center justify-center text-center">
+            <div
+                class="px-5 py-2 rounded-full text-xs font-black uppercase mb-6 bg-indigo-600 text-white tracking-widest">
+                Prescription for Tonight
+            </div>
+            <div class="result-card p-10 rounded-[2.5rem] w-full grid grid-cols-1 md:grid-cols-2 gap-8 relative">
+                <div>
+                    <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Prescribed Bedtime
+                    </p>
+                    <span id="res-bed" class="text-6xl font-extrabold text-slate-800 tracking-tighter">--:--</span>
+                </div>
+                <div>
+                    <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-2">Prescribed Wake Up
+                    </p>
+                    <span id="res-wake" class="text-6xl font-extrabold text-slate-800 tracking-tighter">--:--</span>
+                </div>
+            </div>
+            <div id="logic-box" class="mt-8 p-5 bg-white/40 rounded-2xl border border-slate-100 w-full">
+                <p id="logic-info" class="text-[11px] text-slate-500 leading-relaxed font-medium italic">
+                    Initializing...
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-white/80 rounded-2xl border border-slate-100 p-8">
+            <div class="flex justify-between items-center mb-8">
+                <h2 class="text-sm font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+                    <i class="fa-solid fa-history text-indigo-500"></i> Your Sleep History
+                </h2>
+                <button onclick="clearHistory()"
+                    class="text-[9px] text-red-400 font-bold uppercase hover:underline">Reset Data</button>
+            </div>
+            <div id="history-list" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-2">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function getHistory() { return JSON.parse(localStorage.getItem('sleep_tracker_v3') || "[]"); }
+
+        function timeToMinutes(t) {
+            if (!t || !t.includes(':')) return 0;
+            const cleanTime = t.replace(/(AM|PM)/gi, '').trim();
+            const [h, m] = cleanTime.split(':').map(Number);
+            return (h * 60) + m;
+        }
+
+        function minutesToTime(m) {
+            let totalMins = Math.round(m);
+            while (totalMins < 0) totalMins += 1440; // Full wrap for negative values
+            let h = Math.floor(totalMins / 60) % 24;
+            let mins = totalMins % 60;
+            return String(h).padStart(2, '0') + ":" + String(mins).padStart(2, '0');
+        }
+
+        function roundToNearest5(m) { return Math.round(m / 5) * 5; }
+        function parseCustomDate(dateStr) { if (!dateStr || !dateStr.includes('/')) return null; const parts = dateStr.split('/'); return new Date(parts[2], parts[1] - 1, parts[0]); }
+
+        function calculatePrescription() {
+            const history = getHistory();
+            const count = history.length;
+
+            const bWake = document.getElementById('base-wake').value;
+            const bBed = document.getElementById('base-bed').value;
+            const bSol = parseInt(document.getElementById('base-sol').value);
+            const bWaso = parseInt(document.getElementById('base-waso').value);
+
+            // 1. Calculate Constant Wake Up
+            const wakeMins = roundToNearest5(timeToMinutes(bWake));
+            document.getElementById('res-wake').innerText = minutesToTime(wakeMins);
+
+            // 2. Calculate Baseline Anchor (09:55 in your example)
+            const bBedMins = timeToMinutes(bBed);
+            let wakeTotal = wakeMins; if (wakeTotal <= bBedMins) wakeTotal += 1440;
+            const bActualSleep = (wakeTotal - bBedMins) - bSol - bWaso;
+            let phase1Bed = (bSol > 15 && bWaso <= 15) ? (bBedMins + bSol) + 30 : wakeTotal - (bActualSleep - 30);
+
+            let targetBed, logicText = "";
+
+            // 3. APPLY PHASE LOGIC
+            if (count < 2) {
+                // FORCE baseline prescription for Night 1 and 2
+                targetBed = phase1Bed;
+                logicText = `<b>Phase 1 (Static):</b> Using baseline anchor. Adjustments begin after logging Night 2.`;
+            } else {
+                // START ADJUSTMENTS on Night 3 based on PREVIOUS NIGHT BEDTIME
+                const lastLog = history[count - 1];
+                const last2 = history.slice(-2);
+                const avgSol = (last2[0].sol + last2[1].sol) / 2;
+                const avgWaso = (last2[0].waso + last2[1].waso) / 2;
+                const prevBedMins = timeToMinutes(lastLog.bedtime);
+
+                if (avgSol <= 15 && avgWaso <= 15) {
+                    targetBed = prevBedMins - 15;
+                    logicText = `<b>Phase 2 (Adjusting):</b> Avg SOL/WASO ≤ 15m. Bedtime moved 15m earlier than last night (${lastLog.bedtime}).`;
+                } else {
+                    targetBed = prevBedMins + 15;
+                    logicText = `<b>Phase 2 (Adjusting):</b> Avg SOL/WASO > 15m. Bedtime moved 15m later than last night (${lastLog.bedtime}).`;
+                }
+            }
+
+            // 4. Final Formatting & Safeguards
+            targetBed = roundToNearest5(targetBed);
+
+            // 8h Minimum Window Safeguard
+            let currentWake = wakeMins;
+            let currentBed = targetBed % 1440;
+            let windowSize = (currentWake - currentBed + 1440) % 1440;
+            if (windowSize < 480) {
+                targetBed = wakeMins - 480;
+                logicText += " <br><b>Minimum Window:</b> Adjusted to maintain 8h sleep time.";
+            }
+
+            document.getElementById('res-bed').innerText = minutesToTime(targetBed);
+            document.getElementById('logic-info').innerHTML = logicText;
+        }
+
+        function renderHistory() {
+            const history = getHistory();
+            const container = document.getElementById('history-list');
+            container.innerHTML = history.length ? history.slice().reverse().map((n, i) => `
+                <div class="flex flex-col p-4 bg-white/60 rounded-2xl border border-slate-100 text-[11px] space-y-1">
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-indigo-500 uppercase text-[9px]">Night ${history.length - i} - ${n.displayDate}</span>
+                        <span class="text-slate-500 font-mono">SOL: ${n.sol}m | WASO: ${n.waso}m</span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 italic font-medium">Actual Bedtime used: ${n.bedtime}</div>
+                </div>`).join('') : '<span class="text-slate-400 italic text-xs">Waiting for morning data entry...</span>';
+        }
+
+        function processLog(sol, waso, dStr, pBed) {
+            const lDate = parseCustomDate(dStr); if (!lDate) return;
+            const dKey = lDate.toISOString().split('T')[0];
+            const dDisplay = lDate.toLocaleDateString('en-US', { month: 'short', day: '2-digit' });
+            let hist = getHistory();
+            if (!hist.some(e => e.rawDate === dKey)) {
+                hist.push({ sol: parseInt(sol), waso: parseInt(waso), displayDate: dDisplay, rawDate: dKey, bedtime: pBed });
+                hist.sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+                localStorage.setItem('sleep_tracker_v3', JSON.stringify(hist));
+            }
+            renderHistory(); calculatePrescription();
+        }
+
+        function clearHistory() { if (confirm("Clear tracking history?")) { localStorage.removeItem('sleep_tracker_v3'); location.reload(); } }
+
+        window.onload = () => {
+            const p = new URLSearchParams(window.location.search);
+            const map = { 'base_bed': 'base-bed', 'base_wake': 'base-wake', 'base_sol': 'base-sol', 'base_waso': 'base-waso' };
+            for (let [k, id] of Object.entries(map)) if (p.has(k)) document.getElementById(id).value = p.get(k);
+
+            if (p.has('sol_val') && p.has('waso_val') && p.has('date_val') && p.has('prev_bed')) {
+                processLog(p.get('sol_val'), p.get('waso_val'), p.get('date_val'), p.get('prev_bed'));
+            } else {
+                renderHistory(); calculatePrescription();
+            }
+        };
+    </script>
+</body>
+
+</html>
