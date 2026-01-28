@@ -88,7 +88,7 @@
 
         function minutesToTime(m) {
             let totalMins = Math.round(m);
-            while (totalMins < 0) totalMins += 1440; // Full wrap for negative values
+            while (totalMins < 0) totalMins += 1440; // Full 24h wrap for negative results
             let h = Math.floor(totalMins / 60) % 24;
             let mins = totalMins % 60;
             return String(h).padStart(2, '0') + ":" + String(mins).padStart(2, '0');
@@ -106,11 +106,11 @@
             const bSol = parseInt(document.getElementById('base-sol').value);
             const bWaso = parseInt(document.getElementById('base-waso').value);
 
-            // 1. Calculate Constant Wake Up
+            // 1. Constant Wake Up (Rounded to nearest 5)
             const wakeMins = roundToNearest5(timeToMinutes(bWake));
             document.getElementById('res-wake').innerText = minutesToTime(wakeMins);
 
-            // 2. Calculate Baseline Anchor (09:55 in your example)
+            // 2. Baseline Anchor Calculation
             const bBedMins = timeToMinutes(bBed);
             let wakeTotal = wakeMins; if (wakeTotal <= bBedMins) wakeTotal += 1440;
             const bActualSleep = (wakeTotal - bBedMins) - bSol - bWaso;
@@ -118,13 +118,12 @@
 
             let targetBed, logicText = "";
 
-            // 3. APPLY PHASE LOGIC
-            if (count < 2) {
-                // FORCE baseline prescription for Night 1 and 2
+            // 3. PHASE LOGIC: count < 3 means Morning of Jan 27, 28, and 29 are all static.
+            if (count < 3) {
                 targetBed = phase1Bed;
-                logicText = `<b>Phase 1 (Static):</b> Using baseline anchor. Adjustments begin after logging Night 2.`;
+                logicText = `<b>Initial Static Phase:</b> Using baseline. Adjustments begin after logging 3 nights (Log ${3 - count} more).`;
             } else {
-                // START ADJUSTMENTS on Night 3 based on PREVIOUS NIGHT BEDTIME
+                // Adjustments trigger on the 4th Morning entry (Jan 30) based on Jan 29 entry.
                 const lastLog = history[count - 1];
                 const last2 = history.slice(-2);
                 const avgSol = (last2[0].sol + last2[1].sol) / 2;
@@ -133,23 +132,20 @@
 
                 if (avgSol <= 15 && avgWaso <= 15) {
                     targetBed = prevBedMins - 15;
-                    logicText = `<b>Phase 2 (Adjusting):</b> Avg SOL/WASO ≤ 15m. Bedtime moved 15m earlier than last night (${lastLog.bedtime}).`;
+                    logicText = `<b>Adjustment Phase:</b> Success! Avg SOL/WASO ≤ 15m. Bedtime moved 15m earlier than last night (${lastLog.bedtime}).`;
                 } else {
                     targetBed = prevBedMins + 15;
-                    logicText = `<b>Phase 2 (Adjusting):</b> Avg SOL/WASO > 15m. Bedtime moved 15m later than last night (${lastLog.bedtime}).`;
+                    logicText = `<b>Adjustment Phase:</b> Difficulty. Avg SOL/WASO > 15m. Bedtime moved 15m later than last night (${lastLog.bedtime}).`;
                 }
             }
 
-            // 4. Final Formatting & Safeguards
             targetBed = roundToNearest5(targetBed);
 
             // 8h Minimum Window Safeguard
-            let currentWake = wakeMins;
-            let currentBed = targetBed % 1440;
-            let windowSize = (currentWake - currentBed + 1440) % 1440;
+            let windowSize = (wakeMins - (targetBed % 1440) + 1440) % 1440;
             if (windowSize < 480) {
                 targetBed = wakeMins - 480;
-                logicText += " <br><b>Minimum Window:</b> Adjusted to maintain 8h sleep time.";
+                logicText += " <br><b>Minimum Window:</b> 8h limit applied.";
             }
 
             document.getElementById('res-bed').innerText = minutesToTime(targetBed);
@@ -165,7 +161,7 @@
                         <span class="font-bold text-indigo-500 uppercase text-[9px]">Night ${history.length - i} - ${n.displayDate}</span>
                         <span class="text-slate-500 font-mono">SOL: ${n.sol}m | WASO: ${n.waso}m</span>
                     </div>
-                    <div class="text-[9px] text-slate-400 italic font-medium">Actual Bedtime used: ${n.bedtime}</div>
+                    <div class="text-[9px] text-slate-400 italic">Reported Bedtime: ${n.bedtime}</div>
                 </div>`).join('') : '<span class="text-slate-400 italic text-xs">Waiting for morning data entry...</span>';
         }
 
